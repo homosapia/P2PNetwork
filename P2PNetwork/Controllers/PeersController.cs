@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using P2PNetwork.DomainModels;
 using P2PNetwork.Services;
+using System.Threading.Tasks;
 
 namespace P2PNetwork.Controllers
 {
@@ -16,16 +17,16 @@ namespace P2PNetwork.Controllers
         }
 
         [HttpGet]
-        public IActionResult GetPeers([FromQuery] int count = 20)
+        public async Task<IActionResult> GetPeers([FromQuery] int count = 20)
         {
-            var peers = _peerManager.GetRandomAlivePeers(count);
+            var peers = await _peerManager.GetRandomAlivePeers(count);
             return Ok(peers);
         }
 
         [HttpPost("announce")]
-        public IActionResult AnnouncePeer([FromBody] PeerEndpoint peer)
+        public async Task<IActionResult> AnnouncePeer([FromBody] PeerEndpoint peer)
         {
-            _peerManager.AddOrUpdatePeer(peer);
+            await _peerManager.AddOrUpdatePeer(peer);
             return Ok();
         }
 

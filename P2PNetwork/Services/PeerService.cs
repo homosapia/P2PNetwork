@@ -1,5 +1,6 @@
 ﻿using P2PNetwork.DomainModels;
 using P2PNetwork.Providers;
+using static P2PNetwork.Models.NetworkOptions;
 
 namespace P2PNetwork.Services
 {
@@ -7,10 +8,12 @@ namespace P2PNetwork.Services
     {
         private readonly DnsBootstrapProvider _dnsBootstrap;
         private readonly PeerDictionaryProvider _peerDictionary;
-        public PeerService(IConfiguration configuration, DnsBootstrapProvider dnsBootstrap, PeerDictionaryProvider peerDictionary)
+        private readonly PeerCheckerProvider _peerChecker;
+        public PeerService(IConfiguration configuration, DnsBootstrapProvider dnsBootstrap, PeerDictionaryProvider peerDictionary, PeerCheckerProvider peerChecker)
         {
             _dnsBootstrap = dnsBootstrap;
             _peerDictionary = peerDictionary;
+            _peerChecker = peerChecker;
             MyNodeId = configuration.GetValue<string>("Network:NodeId") ?? throw new Exception("Invalid node name");
         }
 
@@ -24,14 +27,30 @@ namespace P2PNetwork.Services
 
         public async Task AddOrUpdatePeer(PeerEndpoint peer)
         {
+            var isValid = await _peerChecker.PingPeer(peer);
+
+            if (!isValid)
+                throw new Exception("Peer did not respond");
+
             IEnumerable<PeerEndpoint> peerEndpoints = await _peerDictionary.LoadPeersAsync();
-            peerEndpoints = peerEndpoints.Union(peerEndpoints);
+            var dictionaryDataData = await _peerChecker.FilterAlivePeers(peerEndpoints);
+            peerEndpoints = dictionaryDataData.Union(peerEndpoints);
             await _peerDictionary.SavePeersAsync(peerEndpoints);
         }
 
         public async Task StartPeerCheck()
         {
+            var bootstrapData = await _dnsBootstrap.BootstrapAsync();
 
+            var validBootstrapData = await _peerChecker.FilterAlivePeers(bootstrapData);
+
+            var dictionaryData = await _peerDictionary.LoadPeersAsync();
+
+            var dictionaryDataData = await _peerChecker.FilterAlivePeers(bootstrapData);
+
+            var validPeer = validBootstrapData.Union(dictionaryDataData);
+
+            await _peerDictionary.SavePeersAsync(validPeer);
         }
     }
 }

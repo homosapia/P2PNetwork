@@ -12,7 +12,7 @@ namespace P2PNetwork.Providers
             _httpClient = httpClient;
         }
 
-        public async Task<List<PeerEndpoint>> FilterAlivePeers(List<PeerEndpoint> candidates)
+        public async Task<IEnumerable<PeerEndpoint>> FilterAlivePeers(IEnumerable<PeerEndpoint> candidates)
         {
             var alive = new ConcurrentBag<PeerEndpoint>();
 
@@ -33,10 +33,10 @@ namespace P2PNetwork.Providers
                     }
                 });
 
-            return alive.ToList();
+            return alive;
         }
 
-        private async Task<bool> PingPeer(PeerEndpoint peer)
+        public async Task<bool> PingPeer(PeerEndpoint peer)
         {
             try
             {

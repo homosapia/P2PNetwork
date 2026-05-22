@@ -18,7 +18,7 @@ namespace P2PNetwork.Providers
         }
 
         // Главный метод — пытаемся найти пиров всеми способами
-        public async Task<List<PeerEndpoint>> BootstrapAsync()
+        public async Task<IEnumerable<PeerEndpoint>> BootstrapAsync()
         {
             var peers = new List<PeerEndpoint>();
 
@@ -33,8 +33,7 @@ namespace P2PNetwork.Providers
 
             return peers
                 .Where(p => !p.IsBanned)
-                .DistinctBy(p => p.FullAddress)
-                .ToList();
+                .DistinctBy(p => p.FullAddress);
         }
 
         private async Task<List<PeerEndpoint>> ResolveDnsSeeds()
