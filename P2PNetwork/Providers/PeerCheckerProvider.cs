@@ -41,7 +41,7 @@ namespace P2PNetwork.Providers
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                var response = await _httpClient.GetAsync($"{peer.HttpsUrl}/api/ping", cts.Token);
+                var response = await _httpClient.GetAsync($"{peer.HttpsUrl}/api/Peers/ping", cts.Token);
                 return response.IsSuccessStatusCode;
             }
             catch

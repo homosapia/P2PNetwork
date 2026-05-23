@@ -22,7 +22,20 @@ builder.Services.AddSingleton<PeerCheckerProvider>();
 builder.Services.AddSingleton<PeerDictionaryProvider>();
 builder.Services.AddSingleton<PeerService>();
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
+
+// Включаем Swagger в среде разработки
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+var peerService = app.Services.GetRequiredService<PeerService>();
+await peerService.StartPeerCheck();
 
 app.MapControllers();
 

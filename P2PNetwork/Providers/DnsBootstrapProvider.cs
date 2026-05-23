@@ -41,6 +41,9 @@ namespace P2PNetwork.Providers
             var results = new List<PeerEndpoint>();
             var domains = _config.GetSection("Network:DnsBootstrap:SeedDomains").Get<string[]>();
 
+            if (domains == null)
+                return results;
+
             foreach (var domain in domains)
             {
                 try
@@ -80,6 +83,9 @@ namespace P2PNetwork.Providers
         {
             var results = new List<PeerEndpoint>();
             var fallbackSeeds = _config.GetSection("Network:DnsBootstrap:FallbackSeeds").Get<string[]>();
+
+            if (fallbackSeeds == null)
+                return results;
 
             // Параллельно опрашиваем несколько seed-нод
             var tasks = fallbackSeeds.Select(seed => FetchPeersFromSeed(seed));

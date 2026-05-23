@@ -1,5 +1,6 @@
 ﻿using P2PNetwork.DomainModels;
 using P2PNetwork.Providers;
+using System.Linq;
 using static P2PNetwork.Models.NetworkOptions;
 
 namespace P2PNetwork.Services
@@ -34,8 +35,9 @@ namespace P2PNetwork.Services
 
             IEnumerable<PeerEndpoint> peerEndpoints = await _peerDictionary.LoadPeersAsync();
             var dictionaryDataData = await _peerChecker.FilterAlivePeers(peerEndpoints);
-            peerEndpoints = dictionaryDataData.Union(peerEndpoints);
-            await _peerDictionary.SavePeersAsync(peerEndpoints);
+
+            dictionaryDataData = dictionaryDataData.Union(new List<PeerEndpoint> { peer });
+            await _peerDictionary.SavePeersAsync(dictionaryDataData);
         }
 
         public async Task StartPeerCheck()
