@@ -1,4 +1,5 @@
-﻿namespace P2PNetwork.Models
+﻿
+namespace P2PNetwork.Models
 {
     public class NetworkOptions
     {
@@ -15,6 +16,7 @@
         {
             public string FilePath { get; set; }
             public string MaxSavedPeers { get; set; }
+            public List<string> Addresses { get; set; }
         }
 
         public string NodeId { get; set; }
@@ -22,6 +24,8 @@
         public int Port { get; set; }
 
         public string Protocol { get; set; }
+
+        public DateTime FirstSeen { get; set; }
 
         public DnsBootstrapConfig DnsBootstrap { get; set; }
 

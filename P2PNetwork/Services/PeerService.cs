@@ -1,7 +1,8 @@
-﻿using P2PNetwork.DomainModels;
+﻿using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Options;
+using P2PNetwork.DomainModels;
+using P2PNetwork.Models;
 using P2PNetwork.Providers;
-using System.Linq;
-using static P2PNetwork.Models.NetworkOptions;
 
 namespace P2PNetwork.Services
 {
@@ -10,20 +11,36 @@ namespace P2PNetwork.Services
         private readonly DnsBootstrapProvider _dnsBootstrap;
         private readonly PeerDictionaryProvider _peerDictionary;
         private readonly PeerCheckerProvider _peerChecker;
-        public PeerService(IConfiguration configuration, DnsBootstrapProvider dnsBootstrap, PeerDictionaryProvider peerDictionary, PeerCheckerProvider peerChecker)
+        private readonly IOptionsMonitor<NetworkOptions> _options;
+        public PeerService(IOptionsMonitor<NetworkOptions> options, DnsBootstrapProvider dnsBootstrap, PeerDictionaryProvider peerDictionary, PeerCheckerProvider peerChecker)
         {
             _dnsBootstrap = dnsBootstrap;
             _peerDictionary = peerDictionary;
             _peerChecker = peerChecker;
-            MyNodeId = configuration.GetValue<string>("Network:NodeId") ?? throw new Exception("Invalid node name");
+            _options = options;
         }
 
-        public readonly string MyNodeId;
+        public string MyNodeId => _options.CurrentValue.NodeId;
 
         public async Task<IEnumerable<PeerEndpoint>> GetRandomAlivePeers(int count)
         {
             IEnumerable<PeerEndpoint> peerEndpoints = await _peerDictionary.LoadPeersAsync();
-            return peerEndpoints.Take(count);
+            peerEndpoints = peerEndpoints.Take(count - 1);
+            List<PeerEndpoint> peers = new List<PeerEndpoint>();
+            peers.AddRange(peerEndpoints);
+            var addresses = _options.CurrentValue.PeerPersistence.Addresses;
+            var urls = addresses.Select(x => new Uri(x));
+            PeerEndpoint peer = new PeerEndpoint()
+            {
+                Id = MyNodeId,
+                FirstSeen = _options.CurrentValue.FirstSeen,
+                LastSeen = DateTime.UtcNow,
+                Address = urls.First().Host,
+                Port = _options.CurrentValue.Port,
+                FailedAttempts = 0,
+            };
+            peers.Add(peer);
+            return peers;
         }
 
         public async Task AddOrUpdatePeer(PeerEndpoint peer)

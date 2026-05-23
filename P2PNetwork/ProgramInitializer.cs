@@ -28,8 +28,8 @@ namespace P2PNetwork
                 .GetProperty("NodeId")
                 .GetString();
 
-            if (!string.IsNullOrWhiteSpace(nodeId) || !string.IsNullOrWhiteSpace(PublicKey))
-                return;// throw new Exception("Program initialization error");
+            //if (!string.IsNullOrWhiteSpace(nodeId) || !string.IsNullOrWhiteSpace(PublicKey))
+            //    return;// throw new Exception("Program initialization error");
 
             var data = Generate();
             PublicKey = data.PublicKey;
@@ -42,6 +42,7 @@ namespace P2PNetwork
             if (network == null)
                 throw new Exception("Program initialization error");
 
+            network["FirstSeen"] = DateTime.UtcNow;
             network["NodeId"] = data.NodeId;
             jsonObject["Network"] = network;
 

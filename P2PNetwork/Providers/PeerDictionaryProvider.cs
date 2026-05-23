@@ -8,10 +8,10 @@ namespace P2PNetwork.Providers
 {
     public class PeerDictionaryProvider
     {
-        private readonly NetworkOptions _options;
-        public PeerDictionaryProvider(IOptions<NetworkOptions> options)
+        private readonly IOptionsMonitor<NetworkOptions> _options;
+        public PeerDictionaryProvider(IOptionsMonitor<NetworkOptions> options)
         {
-            _options = options.Value;
+            _options = options;
         }
 
         public async Task SavePeersAsync(IEnumerable<PeerEndpoint> peers)
@@ -27,17 +27,17 @@ namespace P2PNetwork.Providers
                 WriteIndented = true
             });
 
-            await File.WriteAllTextAsync(_options.PeerPersistence.FilePath, json);
+            await File.WriteAllTextAsync(_options.CurrentValue.PeerPersistence.FilePath, json);
         }
 
         public async Task<IEnumerable<PeerEndpoint>> LoadPeersAsync()
         {
-            if (!File.Exists(_options.PeerPersistence.FilePath))
+            if (!File.Exists(_options.CurrentValue.PeerPersistence.FilePath))
                 return Enumerable.Empty<PeerEndpoint>();
 
             try
             {
-                var json = await File.ReadAllTextAsync(_options.PeerPersistence.FilePath);
+                var json = await File.ReadAllTextAsync(_options.CurrentValue.PeerPersistence.FilePath);
                 return JsonSerializer.Deserialize<List<PeerEndpoint>>(json)
                     ?? Enumerable.Empty<PeerEndpoint>();
             }

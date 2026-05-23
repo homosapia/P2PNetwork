@@ -56,14 +56,11 @@ namespace P2PNetwork.Providers
                         // Пропускаем loopback и проблемные адреса
                         if (IPAddress.IsLoopback(ip)) continue;
 
-                        results.Add(new PeerEndpoint
-                        {
-                            Id = $"dns-{Guid.NewGuid():N}",
-                            Address = ip.ToString(),
-                            Port = _config.GetValue<int>("Network:Port"),
-                            FirstSeen = DateTime.UtcNow,
-                            LastSeen = DateTime.UtcNow
-                        });
+                        int port = _config.GetValue<int>("Network:Port");
+                        string seedUrl = $"https://{ip}:{port}";
+
+                        var responses = await FetchPeersFromSeed(seedUrl);
+                        results.AddRange(responses);
                     }
 
                     _logger.LogInformation($"DNS seed {domain} resolved to {addresses.Length} addresses");
@@ -109,7 +106,7 @@ namespace P2PNetwork.Providers
                 var timeout = _config.GetValue<int>("Network:DnsBootstrap:TimeoutSeconds");
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeout));
 
-                var response = await _httpClient.GetAsync($"{seedUrl}/api/peers", cts.Token);
+                var response = await _httpClient.GetAsync($"{seedUrl}/api/Peers/GetPeers", cts.Token);
 
                 if (response.IsSuccessStatusCode)
                 {
