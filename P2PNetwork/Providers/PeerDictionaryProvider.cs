@@ -1,11 +1,18 @@
-﻿using P2PNetwork.DomainModels;
+﻿using Microsoft.Extensions.Options;
+using P2PNetwork.DomainModels;
+using P2PNetwork.Models;
+using System.IO;
 using System.Text.Json;
 
 namespace P2PNetwork.Providers
 {
     public class PeerDictionaryProvider
     {
-        private readonly string _filePath;
+        private readonly NetworkOptions _options;
+        public PeerDictionaryProvider(IOptions<NetworkOptions> options)
+        {
+            _options = options.Value;
+        }
 
         public async Task SavePeersAsync(IEnumerable<PeerEndpoint> peers)
         {
@@ -20,17 +27,17 @@ namespace P2PNetwork.Providers
                 WriteIndented = true
             });
 
-            await File.WriteAllTextAsync(_filePath, json);
+            await File.WriteAllTextAsync(_options.PeerPersistence.FilePath, json);
         }
 
         public async Task<IEnumerable<PeerEndpoint>> LoadPeersAsync()
         {
-            if (!File.Exists(_filePath))
+            if (!File.Exists(_options.PeerPersistence.FilePath))
                 return Enumerable.Empty<PeerEndpoint>();
 
             try
             {
-                var json = await File.ReadAllTextAsync(_filePath);
+                var json = await File.ReadAllTextAsync(_options.PeerPersistence.FilePath);
                 return JsonSerializer.Deserialize<List<PeerEndpoint>>(json)
                     ?? Enumerable.Empty<PeerEndpoint>();
             }

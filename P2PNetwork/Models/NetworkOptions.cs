@@ -2,7 +2,7 @@
 {
     public class NetworkOptions
     {
-        public class DnsBootstrap
+        public class DnsBootstrapConfig
         {
             public string[] SeedDomains { get; set; }
             public string[] FallbackSeeds { get; set; }
@@ -11,7 +11,7 @@
             public int MaxParallelLookups { get; set; }
         }
 
-        public class PeerPersistence
+        public class PeerConfigFile
         {
             public string FilePath { get; set; }
             public string MaxSavedPeers { get; set; }
@@ -23,8 +23,8 @@
 
         public string Protocol { get; set; }
 
-        public DnsBootstrap dnsBootstrap { get; set; }
+        public DnsBootstrapConfig DnsBootstrap { get; set; }
 
-        public PeerPersistence peerPersistence { get; set; }
+        public PeerConfigFile PeerPersistence { get; set; }
     }
 }
