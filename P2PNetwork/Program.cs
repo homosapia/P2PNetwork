@@ -1,6 +1,9 @@
+using P2PNetwork;
 using P2PNetwork.Models;
 using P2PNetwork.Providers;
 using P2PNetwork.Services;
+
+ProgramInitializer.Initialization();
 
 var builder = WebApplication.CreateBuilder(args);
 
