@@ -24,23 +24,11 @@ namespace P2PNetwork.Providers
         {
             var peers = new List<PeerEndpoint>();
 
-            try
-            {
-                peers.AddRange(await ResolveDnsSeeds());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Critical error during DNS seed resolution");
-            }
+            // 1. DNS Seed: получаем IP-адреса и формируем из них пиров
+            await SafeExecuteAsync(() => ResolveDnsSeeds(), peers, "DNS seed resolution");
 
-            try
-            {
-                peers.AddRange(await FetchPeersFromSeeds());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Critical error during HTTP seed fetching");
-            }
+            // 2. HTTP Fallback Seeds: опрашиваем seed-ноды по HTTP API
+            await SafeExecuteAsync(() => FetchPeersFromSeeds(), peers, "HTTP seed fetching");
 
             //var savedPeers = await LoadSavedPeers();загрузка из БД
             //peers.AddRange(savedPeers);
@@ -50,7 +38,23 @@ namespace P2PNetwork.Providers
                 .DistinctBy(p => p.FullAddress);
         }
 
-        private async Task<IEnumerable<PeerEndpoint>> ResolveDnsSeeds()
+        private async Task SafeExecuteAsync(Func<Task<List<PeerEndpoint>>> action, List<PeerEndpoint> peers, string actionName)
+        {
+            try
+            {
+                var result = await action();
+                if (result != null)
+                {
+                    peers.AddRange(result);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unhandled exception during {ActionName}", actionName);
+            }
+        }
+
+        private async Task<List<PeerEndpoint>> ResolveDnsSeeds()
         {
             var results = new List<PeerEndpoint>();
             var domains = _options.CurrentValue.DnsBootstrap.SeedDomains;
@@ -93,7 +97,7 @@ namespace P2PNetwork.Providers
             return results;
         }
 
-        private async Task<IEnumerable<PeerEndpoint>> FetchPeersFromSeeds()
+        private async Task<List<PeerEndpoint>> FetchPeersFromSeeds()
         {
             var results = new List<PeerEndpoint>();
             var fallbackSeeds = _options.CurrentValue.DnsBootstrap.FallbackSeeds;
@@ -107,10 +111,7 @@ namespace P2PNetwork.Providers
 
             foreach (var peersList in responses)
             {
-                if (peersList != null)
-                {
-                    results.AddRange(peersList);
-                }
+                results.AddRange(peersList);
             }
 
             return results;
