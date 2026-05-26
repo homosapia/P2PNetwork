@@ -1,4 +1,6 @@
-﻿using P2PNetwork.DomainModels;
+﻿using Microsoft.Extensions.Options;
+using P2PNetwork.DomainModels;
+using P2PNetwork.Models;
 using System.Net;
 using System.Net.Sockets;
 
@@ -6,15 +8,15 @@ namespace P2PNetwork.Providers
 {
     public class DnsBootstrapProvider
     {
-        private readonly IConfiguration _config;
         private readonly ILogger<DnsBootstrapProvider> _logger;
         private readonly HttpClient _httpClient;
+        private readonly IOptionsMonitor<NetworkOptions> _options;
 
-        public DnsBootstrapProvider(IConfiguration config, ILogger<DnsBootstrapProvider> logger, HttpClient httpClient)
+        public DnsBootstrapProvider(IOptionsMonitor<NetworkOptions> options, ILogger<DnsBootstrapProvider> logger, HttpClient httpClient)
         {
-            _config = config;
             _logger = logger;
             _httpClient = httpClient;
+            _options = options;
         }
 
         // Главный метод — пытаемся найти пиров всеми способами
@@ -22,11 +24,23 @@ namespace P2PNetwork.Providers
         {
             var peers = new List<PeerEndpoint>();
 
-            var dnsPeers = await ResolveDnsSeeds();
-            peers.AddRange(dnsPeers);
+            try
+            {
+                peers.AddRange(await ResolveDnsSeeds());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Critical error during DNS seed resolution");
+            }
 
-            var httpPeers = await FetchPeersFromSeeds();
-            peers.AddRange(httpPeers);
+            try
+            {
+                peers.AddRange(await FetchPeersFromSeeds());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Critical error during HTTP seed fetching");
+            }
 
             //var savedPeers = await LoadSavedPeers();загрузка из БД
             //peers.AddRange(savedPeers);
@@ -36,10 +50,10 @@ namespace P2PNetwork.Providers
                 .DistinctBy(p => p.FullAddress);
         }
 
-        private async Task<List<PeerEndpoint>> ResolveDnsSeeds()
+        private async Task<IEnumerable<PeerEndpoint>> ResolveDnsSeeds()
         {
             var results = new List<PeerEndpoint>();
-            var domains = _config.GetSection("Network:DnsBootstrap:SeedDomains").Get<string[]>();
+            var domains = _options.CurrentValue.DnsBootstrap.SeedDomains;
 
             if (domains == null)
                 return results;
@@ -56,11 +70,14 @@ namespace P2PNetwork.Providers
                         // Пропускаем loopback и проблемные адреса
                         if (IPAddress.IsLoopback(ip)) continue;
 
-                        int port = _config.GetValue<int>("Network:Port");
-                        string seedUrl = $"https://{ip}:{port}";
-
-                        var responses = await FetchPeersFromSeed(seedUrl);
-                        results.AddRange(responses);
+                        results.Add(new PeerEndpoint
+                        {
+                            Id = $"dns-{Guid.NewGuid():N}",
+                            Address = ip.ToString(),
+                            Port = _options.CurrentValue.Port,
+                            FirstSeen = DateTime.UtcNow,
+                            LastSeen = DateTime.UtcNow
+                        });
                     }
 
                     _logger.LogInformation($"DNS seed {domain} resolved to {addresses.Length} addresses");
@@ -76,16 +93,16 @@ namespace P2PNetwork.Providers
             return results;
         }
 
-        private async Task<List<PeerEndpoint>> FetchPeersFromSeeds()
+        private async Task<IEnumerable<PeerEndpoint>> FetchPeersFromSeeds()
         {
             var results = new List<PeerEndpoint>();
-            var fallbackSeeds = _config.GetSection("Network:DnsBootstrap:FallbackSeeds").Get<string[]>();
+            var fallbackSeeds = _options.CurrentValue.DnsBootstrap.FallbackSeeds;
 
             if (fallbackSeeds == null)
                 return results;
 
             // Параллельно опрашиваем несколько seed-нод
-            var tasks = fallbackSeeds.Select(seed => FetchPeersFromSeed(seed));
+            var tasks = fallbackSeeds.Select(seed => AskPeer(seed));
             var responses = await Task.WhenAll(tasks);
 
             foreach (var peersList in responses)
@@ -99,11 +116,11 @@ namespace P2PNetwork.Providers
             return results;
         }
 
-        private async Task<List<PeerEndpoint>> FetchPeersFromSeed(string seedUrl)
+        private async Task<IEnumerable<PeerEndpoint>> AskPeer(string seedUrl)
         {
             try
             {
-                var timeout = _config.GetValue<int>("Network:DnsBootstrap:TimeoutSeconds");
+                var timeout = _options.CurrentValue.DnsBootstrap.TimeoutSeconds;
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeout));
 
                 var response = await _httpClient.GetAsync($"{seedUrl}/api/Peers/GetPeers", cts.Token);
