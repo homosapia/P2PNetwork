@@ -74,14 +74,24 @@ namespace P2PNetwork.Providers
                         // Пропускаем loopback и проблемные адреса
                         if (IPAddress.IsLoopback(ip)) continue;
 
-                        results.Add(new PeerEndpoint
+                        string seedUrl = $"https://{ip}:{_options.CurrentValue.Port}";
+
+                        var response = await _httpClient.GetAsync($"{seedUrl}/Api/Peers/Ping");
+                        if (response.IsSuccessStatusCode)
                         {
-                            Id = $"dns-{Guid.NewGuid():N}",
-                            Address = ip.ToString(),
-                            Port = _options.CurrentValue.Port,
-                            FirstSeen = DateTime.UtcNow,
-                            LastSeen = DateTime.UtcNow
-                        });
+                            var responses = await AskPeer(seedUrl);
+                            results.AddRange(responses);
+                        }
+                        else
+                        {
+                            seedUrl = $"http://{ip}:{_options.CurrentValue.Port}";
+                            response = await _httpClient.GetAsync($"{seedUrl}/Api/Peers/Ping");
+                            if (response.IsSuccessStatusCode)
+                            {
+                                var responses = await AskPeer(seedUrl);
+                                results.AddRange(responses);
+                            }
+                        }
                     }
 
                     _logger.LogInformation($"DNS seed {domain} resolved to {addresses.Length} addresses");
