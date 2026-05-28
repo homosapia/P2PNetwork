@@ -1,6 +1,6 @@
-﻿using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using P2PNetwork.DomainModels;
+using P2PNetwork.Interface.Services;
 using P2PNetwork.Models;
 using P2PNetwork.Providers;
 
@@ -8,11 +8,11 @@ namespace P2PNetwork.Services
 {
     public class PeerService
     {
-        private readonly DnsBootstrapProvider _dnsBootstrap;
+        private readonly IDnsService _dnsBootstrap;
         private readonly PeerDictionaryProvider _peerDictionary;
         private readonly PeerCheckerProvider _peerChecker;
         private readonly IOptionsMonitor<NetworkOptions> _options;
-        public PeerService(IOptionsMonitor<NetworkOptions> options, DnsBootstrapProvider dnsBootstrap, PeerDictionaryProvider peerDictionary, PeerCheckerProvider peerChecker)
+        public PeerService(IOptionsMonitor<NetworkOptions> options, IDnsService dnsBootstrap, PeerDictionaryProvider peerDictionary, PeerCheckerProvider peerChecker)
         {
             _dnsBootstrap = dnsBootstrap;
             _peerDictionary = peerDictionary;
@@ -59,7 +59,7 @@ namespace P2PNetwork.Services
 
         public async Task StartPeerCheck()
         {
-            var bootstrapData = await _dnsBootstrap.BootstrapAsync();
+            var bootstrapData = await _dnsBootstrap.FindPeersOnNetwork();
 
             var validBootstrapData = await _peerChecker.FilterAlivePeers(bootstrapData);
 

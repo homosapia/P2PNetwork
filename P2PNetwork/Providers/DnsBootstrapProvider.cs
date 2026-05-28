@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Options;
+﻿using DnsClient;
+using Microsoft.Extensions.Options;
 using P2PNetwork.DomainModels;
 using P2PNetwork.Models;
 using System.Net;
@@ -10,11 +11,13 @@ namespace P2PNetwork.Providers
     {
         private readonly ILogger<DnsBootstrapProvider> _logger;
         private readonly HttpClient _httpClient;
+        private readonly ILookupClient _lookupClient;
         private readonly IOptionsMonitor<NetworkOptions> _options;
 
-        public DnsBootstrapProvider(IOptionsMonitor<NetworkOptions> options, ILogger<DnsBootstrapProvider> logger, HttpClient httpClient)
+        public DnsBootstrapProvider(IOptionsMonitor<NetworkOptions> options, ILookupClient lookupClient, ILogger<DnsBootstrapProvider> logger, HttpClient httpClient)
         {
             _logger = logger;
+            _lookupClient = lookupClient;
             _httpClient = httpClient;
             _options = options;
         }
@@ -30,15 +33,15 @@ namespace P2PNetwork.Providers
             // 2. HTTP Fallback Seeds: опрашиваем seed-ноды по HTTP API
             await SafeExecuteAsync(() => FetchPeersFromSeeds(), peers, "HTTP seed fetching");
 
-            //var savedPeers = await LoadSavedPeers();загрузка из БД
-            //peers.AddRange(savedPeers);
+            // 3. DNS SRV Seed: опрашиваем seed-ноды по HTTP API
+            await SafeExecuteAsync(() => ResolveDnsSrvSeeds(), peers, "HTTP seed fetching");
 
             return peers
                 .Where(p => !p.IsBanned)
                 .DistinctBy(p => p.FullAddress);
         }
 
-        private async Task SafeExecuteAsync(Func<Task<List<PeerEndpoint>>> action, List<PeerEndpoint> peers, string actionName)
+        private async Task SafeExecuteAsync(Func<Task<IEnumerable<PeerEndpoint>>> action, List<PeerEndpoint> peers, string actionName)
         {
             try
             {
@@ -54,7 +57,8 @@ namespace P2PNetwork.Providers
             }
         }
 
-        private async Task<List<PeerEndpoint>> ResolveDnsSeeds()
+        // DNS Seed
+        public async Task<IEnumerable<PeerEndpoint>> ResolveDnsSeeds()
         {
             var results = new List<PeerEndpoint>();
             var domains = _options.CurrentValue.DnsBootstrap.SeedDomains;
@@ -107,7 +111,8 @@ namespace P2PNetwork.Providers
             return results;
         }
 
-        private async Task<List<PeerEndpoint>> FetchPeersFromSeeds()
+        //HTTP Fallback Seeds
+        public async Task<IEnumerable<PeerEndpoint>> FetchPeersFromSeeds()
         {
             var results = new List<PeerEndpoint>();
             var fallbackSeeds = _options.CurrentValue.DnsBootstrap.FallbackSeeds;
@@ -125,6 +130,71 @@ namespace P2PNetwork.Providers
             }
 
             return results;
+        }
+
+        //DNS SRV Seed
+        public async Task<IEnumerable<PeerEndpoint>> ResolveDnsSrvSeeds()
+        {
+            var allPeers = new List<PeerEndpoint>();
+            var seedDomains = _options.CurrentValue.DnsBootstrap.SeedDomains;
+            if (seedDomains == null)
+                return allPeers;
+
+            var tasks = seedDomains.Select(seed =>
+            {
+                var srvQuery = $"_{_options.CurrentValue.SrvName}._{_options.CurrentValue.SrvProtocol}.{seed}";
+                _logger.LogInformation("Querying SRV: {Query}", srvQuery);
+                return QuerySrvAsync(srvQuery);
+            });
+            var response = await Task.WhenAll(tasks);
+            foreach (var item in response)
+            {
+                allPeers.AddRange(item);
+            }
+
+            return allPeers;
+        }
+
+        private async Task<IEnumerable<PeerEndpoint>> QuerySrvAsync(string srvQuery)
+        {
+            var peers = new List<PeerEndpoint>();
+
+            try
+            {
+                // Делаем SRV-запрос
+                var response = await _lookupClient.QueryAsync(srvQuery, QueryType.SRV);
+                var srvRecords = response.Answers.SrvRecords();
+
+                _logger.LogInformation("Got {Count} SRV records from {Query}",
+                    srvRecords.Count(), srvQuery);
+
+                // Для каждой SRV-записи резолвим IP
+                foreach (var srv in srvRecords)
+                {
+                    var hostname = srv.Target.Value.TrimEnd('.');
+
+                    var httpResponse = await _httpClient.GetAsync($"{hostname}/Api/Peers/Ping");
+                    if (!httpResponse.IsSuccessStatusCode)
+                        continue;
+
+                    var peersEndpoint = await AskPeer(hostname);
+                    peersEndpoint = peersEndpoint.Select(x =>
+                    {
+                        SrvPeerEndpoint sreModel = (SrvPeerEndpoint)x;
+                        sreModel.Priority = srv.Priority;
+                        sreModel.Weight = srv.Weight;
+                        sreModel.Source = srvQuery;
+                        return sreModel;
+                    });
+                    peers.AddRange(peersEndpoint);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to query SRV: {Query}", srvQuery);
+            }
+
+            return peers;
         }
 
         private async Task<IEnumerable<PeerEndpoint>> AskPeer(string seedUrl)

@@ -23,6 +23,10 @@ namespace P2PNetwork.Models
 
         public int Port { get; set; }
 
+        public string SrvName { get; set; }
+
+        public string SrvProtocol { get; set; }
+
         public string Protocol { get; set; }
 
         public DateTime FirstSeen { get; set; }

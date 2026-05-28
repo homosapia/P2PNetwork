@@ -1,3 +1,4 @@
+using DnsClient;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Options;
@@ -24,6 +25,24 @@ builder.Services.AddSingleton<DnsBootstrapProvider>();
 builder.Services.AddSingleton<PeerCheckerProvider>();
 builder.Services.AddSingleton<PeerDictionaryProvider>();
 builder.Services.AddSingleton<PeerService>();
+
+builder.Services.AddSingleton<ILookupClient>(sp =>
+{
+    TimeSpan time = TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("Network:DnsBootstrap:TimeoutSeconds"));
+    var options = new LookupClientOptions
+    {
+        // Используем системные DNS-серверы или указываем явно
+        UseCache = true,
+        MinimumCacheTimeout = time,
+        Retries = 2,
+        Timeout = time,
+        ThrowDnsErrors = false, // Не выбрасываем исключения при NXDOMAIN и т.д.
+        EnableAuditTrail = false,// Включайте только для отладки
+        UseTcpOnly = false // Используем UDP для обычных запросов
+    };
+
+    return new LookupClient(options);
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
